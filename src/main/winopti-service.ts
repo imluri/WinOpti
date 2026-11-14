@@ -12,6 +12,7 @@ import { readPresentMon } from './presentmon'
 import { createWindowsPlatform } from './winopti-platform'
 export { createWindowsPlatform } from './winopti-platform'
 export { createLiveProcesses } from './live-processes'
+export { createProcessReview } from './process-review'
 
 type Phase = 'baseline' | 'followup'
 type Platform = Pick<ReturnType<typeof createWindowsPlatform>, 'snapshot' | 'requestClose'>

@@ -33,6 +33,7 @@ const items = [
   { id: 'scan', label: 'Scan', icon: <Icon name="pulse" /> },
   { id: 'review', label: 'Review apps', icon: <Icon name="shield" /> },
   { id: 'compare', label: 'Compare', icon: <Icon name="compare" /> },
+  { id: 'updates', label: 'Updates', icon: <Icon name="download" /> },
   { id: 'settings', label: 'Settings', icon: <Icon name="settings" /> },
 ]
 
@@ -82,6 +83,7 @@ function App() {
   const [saved, setSaved] = useState(() => ({ ...defaults, ...readLocal(storageKey, {}) }))
   const [draft, setDraft] = useState(saved)
   const [group, setGroup] = useState('appearance')
+  const updatesHeading = useRef(null)
   const [processPicker, setProcessPicker] = useState(null)
   const [liveProcesses, setLiveProcesses] = useState([])
   const [processLoading, setProcessLoading] = useState(false)
@@ -101,6 +103,9 @@ function App() {
     ?? baseline?.findings.find(item => item.executable?.split(/[\\/]/).at(-1).toLowerCase() === conditions.gameExecutable.toLowerCase())
   const elapsed = active ? Math.max(0, (now - active.startedAt) / 1000) : 0
   const dirty = Object.keys(defaults).some(key => draft[key] !== saved[key])
+  const navigationPage = page === 'settings' && group === 'updates' ? 'updates' : page
+  const updateStatus = updates.status === 'available' ? 'Update available' : updates.status === 'downloaded' ? 'Update ready to install' : undefined
+  const navigationItems = items.map(item => item.id === 'updates' ? { ...item, status: updateStatus } : item)
 
   useEffect(() => {
     const scheme = matchMedia('(prefers-color-scheme: dark)')
@@ -179,8 +184,15 @@ function App() {
     finally { operationInProgress.current = false; setBusy(false) }
   }
 
-  function navigate(id) {
+  function navigate(id, settingsGroup) {
     setNotice('')
+    if (id === 'updates') {
+      setGroup('updates')
+      setPage('settings')
+      requestAnimationFrame(() => updatesHeading.current?.focus())
+      return
+    }
+    if (id === 'settings') setGroup(current => settingsGroup ?? (current === 'updates' ? 'appearance' : current))
     setPage(id)
   }
 
@@ -384,7 +396,7 @@ function App() {
   )
 
   return (
-    <DesktopShell brand={brand} items={items} page={page} onNavigate={navigate} windowControls={window.desktopWindow} footer={footer}
+    <DesktopShell brand={brand} items={navigationItems} page={navigationPage} onNavigate={navigate} windowControls={window.desktopWindow} footer={footer}
       sidebarTools={<div className="sidebar-modes"><span className="nav-section">Capture mode</span>
         {bridge && <button className="nav-item" disabled={Boolean(active) || busy} aria-pressed={!isPreview} onClick={() => switchMode('live')}>
           <span className="status-dot live-dot" /> Live device</button>}
@@ -395,12 +407,8 @@ function App() {
           <button className="nav-item" disabled={Boolean(active) || busy} aria-current={scenario === 'unchanged' && page === 'compare' ? 'true' : undefined} onClick={() => loadExample('unchanged')}>Background load drops</button>
         </div>}
       </div>}
-      sidebarFooter={<>
-        {updates.status === 'downloaded' && <button type="button" className="button button-secondary update-shortcut"
-          onClick={() => { setGroup('updates'); navigate('settings') }}><Icon name="download" size={15} /> Update ready</button>}
-        <div className="workspace"><div className="workspace-avatar" aria-hidden="true"><Icon name="lock" size={16} /></div>
-          <div className="workspace-copy"><strong>Local captures</strong><span>WinOpti {updates.version}</span></div></div>
-      </>}
+      sidebarFooter={<div className="workspace"><div className="workspace-avatar" aria-hidden="true"><Icon name="lock" size={16} /></div>
+        <div className="workspace-copy"><strong>Local captures</strong><span>WinOpti {updates.version}</span></div></div>}
     >
       <div className={`page-content dashboard${draft.compact ? ' page-content--compact' : ''}`} style={{ '--ui-text-scale': draft.scale / 100 }}>
         <div className="page-meta">
@@ -409,7 +417,7 @@ function App() {
         </div>
         {notice && <p className="notice" role="status">{notice}</p>}
         {page === 'performance' && <PerformancePage isPreview={isPreview} bridge={bridge} />}
-        {page === 'processes' && <ProcessesPage key={mode} isPreview={isPreview} fetchProcesses={bridge?.getProcesses} />}
+        {page === 'processes' && <ProcessesPage key={mode} isPreview={isPreview} bridge={bridge} />}
         {page === 'scan' && <ScanPage {...{ baseline, phase, conditions, setConditions, active, elapsed, busy, isPreview, gameProcess }}
           recurringPanel={<RecurringScans schedule={isPreview ? emptySchedule : recurring} conditions={conditions}
             available={!isPreview && Boolean(bridge?.setRecurring)} pending={busy || !scheduleLoaded} onSave={saveSchedule}>
@@ -420,14 +428,14 @@ function App() {
           onReview={() => navigate('review')} onBaseline={() => { setPhase('baseline'); if (baseline) setConditions(baseline.conditions) }} />}
         {page === 'review' && <ReviewPage {...{ baseline, closeResults, selected, alwaysProtect, busy, isPreview }} active={Boolean(active)} reviewAvailable={isPreview || reviewAvailable}
           onToggle={toggleSelected} onPrepare={prepareClose} onCapture={captureAgain} onScan={() => navigate('scan')}
-          onProtect={() => { setGroup('protection'); navigate('settings') }} />}
+          onProtect={() => navigate('settings', 'protection')} />}
         {page === 'compare' && <ComparePage {...{ baseline, followup, closeResults, busy, isPreview }} active={Boolean(active)}
           onCapture={captureAgain} onExport={exportReport} onImport={importFrameTimes} onReview={() => navigate(baseline ? 'review' : 'scan')}
           onExample={loadExample} />}
         {page === 'settings' && <>
           <div className="page-heading"><h1>Settings</h1><p>Manage appearance, app protection, and updates.</p></div>
           <SettingsPanel groups={groups} values={draft} onChange={(id, value) => { setNotice(''); setDraft(current => ({ ...current, [id]: value })) }} activeGroup={group} onGroupChange={setGroup}
-            renderGroupContent={current => current.id === 'updates' ? <UpdatesPanel state={updates} pending={updatePending}
+            renderGroupContent={current => current.id === 'updates' ? <UpdatesPanel headingRef={updatesHeading} state={updates} pending={updatePending}
               installBlocked={Boolean(active || recurring.running || busy || confirmation)}
               onCheck={() => runUpdate('checkForUpdates')} onDownload={() => runUpdate('downloadUpdate')}
               onInstall={() => void action(() => runUpdate('installUpdate'))} /> : current.id === 'protection' ? <section className="setting-section protection-settings">

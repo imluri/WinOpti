@@ -12,7 +12,7 @@
 .brand-mark { width: 27px; height: 27px; border-radius: 7px; }
 .title-caption { font-size: 11px; padding-inline-start: 15px; }
 .sidebar nav { padding: 17px 11px 0; gap: 4px; }
-.sidebar { gap: 22px; }
+.sidebar { gap: 22px; overflow-y: auto; scrollbar-color: var(--ui-control-border) var(--ui-surface); }
 .nav-item { min-height: 39px; font-size: 13px; border-radius: 7px; }
 .nav-item[aria-current="page"] { box-shadow: inset 2px 0 var(--ui-accent); }
 .sidebar-modes { margin-inline: 11px; border-top: 1px solid var(--ui-border); padding-top: 15px; }
@@ -25,11 +25,11 @@
 .sidebar-examples .nav-item[aria-current="true"] { color: var(--ui-accent); }
 .status-dot { display: inline-block; width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; border: 1px solid var(--win-subtle); }
 .status-dot.live-dot { border-color: var(--win-signal); background: var(--win-signal); }
+.nav-item-status { margin-inline-start: auto; }
 .workspace-avatar { width: 30px; height: 30px; flex-basis: 30px; border-radius: 8px; }
 .sidebar-footer { padding: 14px 18px; }
 .workspace-copy strong { font-size: 12px; }
 .workspace-copy span { font-family: var(--win-mono); font-size: 10px; }
-.update-shortcut { width: 100%; justify-content: flex-start; margin-bottom: 12px; }
 .main-scroll { scrollbar-color: var(--ui-control-border) var(--ui-canvas); }
 .page-content.dashboard { width: min(100%, 1180px); padding: 23px 35px 36px; }
 .page-meta { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 13px; }

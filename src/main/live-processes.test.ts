@@ -59,7 +59,7 @@ test('keeps same-name paths separate and leaves stale, reset, and unavailable re
 
 test('coalesces concurrent renderer polls and returns only the public row fields', async () => {
   let requests = 0
-  const getProcesses = createLiveProcesses(async () => {
+  const { getProcesses, getTarget } = createLiveProcesses(async () => {
     requests++
     return sample(1000, process(10))
   }, async () => null)
@@ -68,8 +68,33 @@ test('coalesces concurrent renderer polls and returns only the public row fields
   assert.deepEqual(first, second)
   assert.equal(first.diskAt, null)
   assert.equal(first.rows[0].id, '1')
+  assert.equal(getTarget('1'), undefined)
   assert.deepEqual(Object.keys(first.rows[0]).sort(), [
-    'cpuPercent', 'diskBytesPerSecond', 'executable', 'gpuPercent', 'icon', 'id',
-    'ioBytesPerSecond', 'memoryBytes', 'name', 'processCount',
+    'canInspect', 'canUninstall', 'cpuPercent', 'diskBytesPerSecond', 'executable', 'gpuPercent',
+    'icon', 'id', 'ioBytesPerSecond', 'isSelf', 'memoryBytes', 'name', 'processCount',
   ])
+})
+
+test('marks WinOpti and keeps file paths private while limiting the uninstall handoff', async () => {
+  const self = 'C:\\WinOpti\\WinOpti.exe'
+  const windows = 'C:\\Windows\\explorer.exe'
+  const browser = 'D:\\Apps\\Browser.exe'
+  const { getProcesses, getTarget } = createLiveProcesses(async () => sample(1000,
+    process(10, { executable: self, iconPath: self }),
+    process(11, { executable: self, iconPath: self }),
+    process(12, { executable: windows, iconPath: windows }),
+    process(13, { executable: browser, iconPath: browser }),
+    process(14, { executable: null, name: 'Unknown.exe' }),
+  ), async () => null, { ownPid: 10 })
+  const { rows } = await getProcesses()
+  const winOpti = rows.find(row => row.isSelf)!
+  assert.equal(winOpti.name, 'WinOpti')
+  assert.equal(winOpti.processCount, 2)
+  assert.equal(winOpti.canUninstall, false)
+  assert.equal(rows.find(row => row.executable === 'explorer.exe')!.canUninstall, false)
+  assert.equal(rows.find(row => row.executable === 'Unknown.exe')!.canInspect, false)
+  const app = rows.find(row => row.executable === 'Browser.exe')!
+  assert.equal(app.canUninstall, true)
+  assert.deepEqual(getTarget(app.id), { executable: browser, canUninstall: true })
+  assert.ok(!JSON.stringify(rows).includes('Apps'))
 })

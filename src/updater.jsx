@@ -12,7 +12,7 @@ const statusLabels = {
   error: 'Update failed',
 }
 
-export function UpdatesPanel({ state, pending, installBlocked, onCheck, onDownload, onInstall }) {
+export function UpdatesPanel({ headingRef, state, pending, installBlocked, onCheck, onDownload, onInstall }) {
   const { version, status, updateVersion, progress, message } = state
   const percentage = Number.isFinite(progress) ? Math.round(Math.min(100, Math.max(0, progress))) : null
   const inProgress = status === 'checking' || status === 'downloading'
@@ -26,7 +26,7 @@ export function UpdatesPanel({ state, pending, installBlocked, onCheck, onDownlo
   return <section className="setting-section update-settings" aria-labelledby="updates-heading">
     <div className="update-version">
       <div className="metric-icon"><Icon name="download" size={17} /></div>
-      <div><h2 id="updates-heading">WinOpti updates</h2><p>Installed version <strong>{version}</strong></p></div>
+      <div><h2 id="updates-heading" ref={headingRef} tabIndex={-1}>WinOpti updates</h2><p>Installed version <strong>{version}</strong></p></div>
     </div>
     <div className="update-content">
       <div className="update-status" role="status">

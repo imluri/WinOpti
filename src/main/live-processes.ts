@@ -1,6 +1,8 @@
 import path from 'node:path'
 import type { LiveProcesses, LiveProcessRow, ProcessCounter, ProcessCounters } from '../shared/processes'
 
+export type LiveProcessTarget = { executable: string; canUninstall: boolean }
+
 type Metric = 'cpuPercent' | 'memoryBytes' | 'diskBytesPerSecond' | 'ioBytesPerSecond'
 type ProcessGroup = Omit<LiveProcessRow, 'gpuPercent'> & {
   hasDisplayName: boolean
@@ -82,15 +84,18 @@ export function groupProcessCounters(current: ProcessCounters, previous?: Proces
 export function createLiveProcesses(
   sample: () => Promise<ProcessCounters>,
   loadIcon: (executable: string) => Promise<string | null>,
+  options: { ownPid?: number; windowsDirectory?: string } = {},
 ) {
   let previous: ProcessCounters | undefined
   let latest: LiveProcesses | undefined
   let receivedAt = 0
   let pending: Promise<LiveProcesses> | undefined
   const publicIds = new Map<string, number>()
+  let targets = new Map<string, LiveProcessTarget>()
   let nextId = 0
   const icons = new Map<string, { icon: string | null; expires: number }>()
   const loadingIcons = new Set<string>()
+  const windowsDirectory = path.win32.resolve(options.windowsDirectory || 'C:\\Windows').toLowerCase()
 
   function iconFor(executable: string) {
     const key = executable.toLowerCase()
@@ -111,6 +116,8 @@ export function createLiveProcesses(
     if (latest && Date.now() - receivedAt < 950) return latest
     pending = sample().then(current => {
       const groups = groupProcessCounters(current, previous)
+      const ownProcess = current.processes.find(process => process.pid === options.ownPid)
+      const ownId = ownProcess ? groupIdentity(ownProcess) : null
       previous = current
       // Prioritize app icons for the busiest visible rows without blocking telemetry.
       groups.sort((a, b) => (b.cpuPercent ?? -1) - (a.cpuPercent ?? -1) || a.name.localeCompare(b.name))
@@ -118,10 +125,25 @@ export function createLiveProcesses(
       for (const id of publicIds.keys()) {
         if (!activeIds.has(id)) publicIds.delete(id)
       }
+      const nextTargets = new Map<string, LiveProcessTarget>()
       const rows = groups.map(({ id, iconPath, ...group }) => {
         if (!publicIds.has(id)) publicIds.set(id, ++nextId)
-        return { ...group, id: String(publicIds.get(id)), icon: iconPath ? iconFor(iconPath) : null }
+        const publicId = String(publicIds.get(id))
+        const isSelf = id === ownId
+        let canUninstall = false
+        if (iconPath) {
+          // The native helper only returns this path for local executables in the current session.
+          const relative = path.win32.relative(windowsDirectory, path.win32.normalize(iconPath).toLowerCase())
+          const inWindowsDirectory = relative !== '..' && !relative.startsWith('..\\') && !path.win32.isAbsolute(relative)
+          canUninstall = !isSelf && Boolean(ownProcess) && !inWindowsDirectory
+          nextTargets.set(publicId, { executable: iconPath, canUninstall })
+        }
+        return {
+          ...group, id: publicId, name: isSelf ? 'WinOpti' : group.name, isSelf,
+          canInspect: Boolean(iconPath), canUninstall, icon: iconPath ? iconFor(iconPath) : null,
+        }
       })
+      targets = nextTargets
       latest = { at: current.at, diskAt: current.diskAt ?? null, rows }
       receivedAt = Date.now()
       return latest
@@ -129,5 +151,5 @@ export function createLiveProcesses(
     return pending
   }
 
-  return getProcesses
+  return { getProcesses, getTarget: (id: string) => targets.get(id) }
 }

@@ -1,5 +1,6 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { Icon } from './icons'
+import { ProcessDetails, processTagLabels } from './process-details'
 import { AppIcon } from './workflow'
 import { useLivePolling } from './use-live-polling'
 
@@ -34,9 +35,14 @@ const exampleRows = [
   ['sync', 'Microsoft OneDrive', 'OneDrive.exe', 1, .9, 0, 191, 5.1, 2.5],
   ['node', 'Node.js', 'node.exe', 2, .4, null, 281, .03, .01],
   ['winopti', 'WinOpti', 'WinOpti.exe', 5, .2, .1, 323, .06, .02],
+  ['overlay', 'Example Overlay Helper', 'overlay-helper.exe', 1, 9.3, 12.2, 470, .2, .15],
   ['system', 'Windows system process', 'System', 1, null, null, null, null, null],
 ].map(([id, name, executable, processCount, cpuPercent, gpuPercent, memoryMiB, ioMiB, diskMiB]) => ({
   id, name, executable, processCount, cpuPercent, gpuPercent,
+  isSelf: id === 'winopti',
+  tags: id === 'overlay' ? ['suspicious', 'bloat'] : [],
+  canInspect: id !== 'system',
+  canUninstall: !['system', 'winopti'].includes(id),
   memoryBytes: memoryMiB === null ? null : memoryMiB * MiB,
   ioBytesPerSecond: ioMiB === null ? null : ioMiB * MiB,
   diskBytesPerSecond: diskMiB === null ? null : diskMiB * MiB,
@@ -62,12 +68,21 @@ function ValueCell({ row, column }) {
   </td>
 }
 
-export function ProcessesPage({ isPreview, fetchProcesses }) {
+function rowLabels(row, tags) {
+  const labels = Object.keys(processTagLabels).filter(tag => tags.includes(tag)).map(tag => processTagLabels[tag])
+  return row.isSelf ? ['This app', ...labels] : labels
+}
+
+export function ProcessesPage({ isPreview, bridge }) {
+  const scrollRegion = useRef(null)
+  const fetchProcesses = bridge?.getProcesses
   const [snapshot, setSnapshot] = useState(null)
   const [failed, setFailed] = useState(false)
   const [paused, setPaused] = useState(false)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState({ key: 'cpuPercent', descending: true })
+  const [selected, setSelected] = useState(null)
+  const [savedTags, setSavedTags] = useState(() => new Map())
   const onError = useCallback(() => setFailed(true), [])
   const onResult = useCallback(result => {
     if (!Array.isArray(result?.rows) || !measured(result.at)) {
@@ -75,16 +90,25 @@ export function ProcessesPage({ isPreview, fetchProcesses }) {
       return
     }
     setSnapshot(result)
+    setSavedTags(current => {
+      if (!current.size) return current
+      return new Map(result.rows.flatMap(row => {
+        const saved = current.get(row.id)
+        const tags = row.tags ?? []
+        return saved && (tags.length !== saved.length || !tags.every(tag => saved.includes(tag))) ? [[row.id, saved]] : []
+      }))
+    })
     setFailed(false)
   }, [])
   const live = !isPreview && Boolean(fetchProcesses)
   useLivePolling(fetchProcesses, live && !paused, onResult, onError)
 
   const allRows = isPreview ? exampleRows : snapshot?.rows ?? []
+  const selectedRow = selected && (allRows.find(row => row.id === selected.id) ?? selected)
   const query = search.trim().toLowerCase()
-  const rows = useMemo(() => allRows.filter(row => (
-    !query || row.name.toLowerCase().includes(query) || row.executable?.toLowerCase().includes(query)
-  )).sort((left, right) => compareRows(left, right, sort)), [allRows, query, sort])
+  const rows = useMemo(() => allRows.filter(row => !query || [
+    row.name, row.executable, ...rowLabels(row, savedTags.get(row.id) ?? row.tags ?? []),
+  ].some(value => value?.toLowerCase().includes(query))).sort((left, right) => compareRows(left, right, sort)), [allRows, query, sort, savedTags])
   const connected = live && !paused && !failed && snapshot
   const status = isPreview ? 'Example readings' : paused ? 'Updates paused' : !live || failed
     ? snapshot ? 'Readings interrupted' : 'Readings unavailable'
@@ -97,16 +121,26 @@ export function ProcessesPage({ isPreview, fetchProcesses }) {
     setSort(current => ({ key, descending: current.key === key ? !current.descending : key !== 'name' }))
   }
 
+  async function saveTags(id, tags) {
+    const saved = isPreview ? tags : await bridge.setProcessTags(id, tags)
+    setSavedTags(current => new Map(current).set(id, saved))
+  }
+
+  function closeDetails() {
+    setSelected(null)
+    if (document.activeElement === document.body) scrollRegion.current?.focus({ preventScroll: true })
+  }
+
   return <>
     <header className="page-heading processes-heading">
-      <div><h1>Processes</h1><p>See which running apps are using the most resources.</p></div>
+      <div><h1>Processes</h1><p>Sort resource use or select an app for tags, executable checks, and uninstall options.</p></div>
       <div className="performance-status" role="status"><span className={`status-dot${connected ? ' live-dot' : ''}`} aria-hidden="true" />{status}</div>
     </header>
     <section className="panel processes-panel" aria-label="Running apps">
       <div className="processes-toolbar">
         <label className="processes-search">
           <Icon name="search" size={16} />
-          <input className="setting-input" type="search" aria-label="Search running apps" placeholder="Search apps"
+          <input className="setting-input" type="search" aria-label="Search running apps" placeholder="Search apps or tags"
             value={search} onChange={event => setSearch(event.target.value)} />
         </label>
         <div className="processes-toolbar-actions">
@@ -116,9 +150,9 @@ export function ProcessesPage({ isPreview, fetchProcesses }) {
           </button>}
         </div>
       </div>
-      <div className="processes-scroll" role="region" aria-label="Process usage table" tabIndex={0}>
+      <div ref={scrollRegion} className="processes-scroll" role="region" aria-label="Process usage table" tabIndex={0}>
         <table className="processes-table">
-          <caption className="process-screen-reader">Running apps grouped by executable. Select a column heading to sort.</caption>
+          <caption className="process-screen-reader">Running apps grouped by executable. Select a column heading to sort or an app name to review it.</caption>
           <thead><tr>{columns.map(column => {
             const selected = sort.key === column.key
             return <th key={column.key} scope="col" aria-sort={selected ? sort.descending ? 'descending' : 'ascending' : undefined}>
@@ -129,14 +163,20 @@ export function ProcessesPage({ isPreview, fetchProcesses }) {
               </button>
             </th>
           })}</tr></thead>
-          <tbody>{rows.length ? rows.map(row => <tr key={row.id}>
-            <th scope="row"><div className="process-name-cell">
-              <AppIcon item={row} />
-              <div className="process-name"><strong title={row.name}>{row.name}</strong>
-                <small title={row.executable}>{row.executable}{row.processCount > 1 && ` · ${row.processCount} processes`}</small></div>
-            </div></th>
-            {columns.slice(1).map(column => <ValueCell key={column.key} row={row} column={column} />)}
-          </tr>) : <tr><td className="processes-empty" colSpan={columns.length}>{empty}</td></tr>}</tbody>
+          <tbody>{rows.length ? rows.map(row => {
+            const labels = rowLabels(row, savedTags.get(row.id) ?? row.tags ?? [])
+            return <tr key={row.id}>
+              <th scope="row"><button type="button" className="process-name-cell" aria-haspopup="dialog" onClick={() => setSelected(row)}>
+                <AppIcon item={row} />
+                <span className="process-name"><strong title={row.name}>{row.name}</strong>
+                  <small title={row.executable}>{row.executable}{row.processCount > 1 && ` · ${row.processCount} processes`}</small>
+                  {labels.length > 0 && <span className="process-tags">{labels.map(label => <span className="process-tag" key={label}>{label}</span>)}</span>}
+                </span>
+                <Icon name="info" size={15} />
+              </button></th>
+              {columns.slice(1).map(column => <ValueCell key={column.key} row={row} column={column} />)}
+            </tr>
+          }) : <tr><td className="processes-empty" colSpan={columns.length}>{empty}</td></tr>}</tbody>
         </table>
       </div>
       <div className="processes-footer">
@@ -149,5 +189,7 @@ export function ProcessesPage({ isPreview, fetchProcesses }) {
         </div>}
       </div>
     </section>
+    {selectedRow && <ProcessDetails row={selectedRow} tags={savedTags.get(selectedRow.id) ?? selectedRow.tags ?? []}
+      isPreview={isPreview} bridge={bridge} onSaveTags={saveTags} onClose={closeDetails} />}
   </>
 }

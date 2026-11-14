@@ -40,9 +40,11 @@ export function Sidebar({ items, page, onNavigate, tools, footer, expanded }) {
   return (
     <aside className={`sidebar${expanded ? ' sidebar--expanded' : ''}`} id="app-navigation">
       <nav aria-label="Main navigation">
-        {items.map(({ id, label, icon }) => (
-          <button key={id} type="button" className="nav-item" aria-current={page === id ? 'page' : undefined} onClick={() => onNavigate(id)}>
+        {items.map(({ id, label, icon, status }) => (
+          <button key={id} type="button" className="nav-item" aria-current={page === id ? 'page' : undefined}
+            aria-description={status} title={status} onClick={() => onNavigate(id)}>
             {icon}<span>{label}</span>
+            {status && <span className="status-dot live-dot nav-item-status" aria-hidden="true" />}
           </button>
         ))}
       </nav>

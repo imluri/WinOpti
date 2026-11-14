@@ -27,7 +27,7 @@
   scrollbar-color: var(--ui-control-border) var(--ui-surface);
 }
 .processes-scroll:focus-visible { outline-offset: -3px; }
-.processes-table { width: 100%; min-width: 660px; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+.processes-table { width: 100%; min-width: 720px; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
 .processes-table thead { position: sticky; top: 0; z-index: 1; background: var(--ui-soft); }
 .processes-table thead th { width: 12%; padding: 0; border-bottom: 1px solid var(--ui-border); }
 .processes-table thead th:first-child { width: 32%; }
@@ -60,14 +60,40 @@
 .processes-table tbody th, .processes-table tbody td { border-bottom: 1px solid var(--ui-border); }
 .processes-table tbody tr:last-child > * { border-bottom: 0; }
 .processes-table tbody tr:hover { background: var(--ui-soft); }
-.processes-table tbody th { padding: 8px 10px 8px 15px; text-align: left; }
-.process-name-cell { display: flex; align-items: center; gap: 9px; }
+.processes-table tbody th { padding: 3px 5px 3px 9px; text-align: left; }
+.process-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 40px;
+  padding: 4px 5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-ink);
+  text-align: left;
+}
+.process-name-cell:hover { border-color: var(--ui-control-border); background: var(--ui-surface); }
+.process-name-cell > svg { flex: 0 0 auto; margin-inline-start: auto; color: var(--ui-muted); }
 .process-name-cell .app-icon { width: 28px; height: 28px; border-radius: 6px; }
 .process-name-cell .app-icon img { width: 20px; height: 20px; }
 .process-name { min-width: 0; display: grid; gap: 2px; }
 .process-name strong, .process-name small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .process-name strong { font-size: .89em; font-weight: 650; }
 .process-name small { color: var(--ui-muted); font-size: .75em; font-weight: 450; }
+.process-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; }
+.process-tag {
+  display: inline-flex;
+  padding: 1px 6px;
+  border: 1px solid var(--ui-control-border);
+  border-radius: 999px;
+  background: var(--ui-soft);
+  color: var(--ui-ink);
+  font-size: .7em;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .process-value {
   position: relative;
   padding: 6px 12px 6px 7px;
@@ -99,6 +125,43 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+.process-details {
+  width: min(500px, calc(100% - 26px));
+  max-height: calc(100% - 40px);
+  overflow: auto;
+  scrollbar-color: var(--ui-control-border) var(--ui-surface);
+}
+.process-details-heading { display: flex; gap: 10px; align-items: center; }
+.process-details-heading > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.process-details-heading h2 { margin: 0 0 2px; font-size: 1.15em; }
+.process-details-heading p, .process-detail-section p {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: .83em;
+  line-height: 1.45;
+}
+.process-details-heading .icon-button { width: 32px; height: 32px; flex: 0 0 auto; border-radius: 6px; }
+.process-details-heading .icon-button:hover { background: var(--ui-soft); color: var(--ui-ink); }
+.process-detail-section {
+  min-width: 0;
+  margin: 14px 0 0;
+  padding: 13px 0 0;
+  border: 0;
+  border-top: 1px solid var(--ui-border);
+}
+fieldset.process-detail-section { padding-top: 4px; }
+.process-detail-section h3, .process-detail-section legend { margin: 0 0 5px; padding: 0; font-size: .92em; font-weight: 650; }
+.process-detail-section legend { padding-inline-end: 8px; }
+.process-detail-section .button { margin-top: 8px; }
+.process-tag-choices { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
+.process-tag-choices label { display: flex; align-items: center; gap: 7px; min-height: 26px; font-size: .88em; cursor: pointer; }
+.process-evidence { display: grid; gap: 7px; margin: 10px 0; padding: 9px 10px; border-radius: 7px; background: var(--ui-soft); }
+.process-evidence > div { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 6px; font-size: .82em; }
+.process-evidence dt { color: var(--ui-muted); }
+.process-evidence dd { margin: 0; overflow-wrap: anywhere; }
+.process-evidence code { font-family: var(--win-mono); user-select: text; }
+.process-detail-section .process-detail-message { margin-top: 7px; color: var(--ui-ink); }
 
 @media (max-width: 620px) {
   .processes-toolbar, .processes-footer { flex-wrap: wrap; }

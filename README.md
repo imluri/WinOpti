@@ -19,7 +19,7 @@ On Windows, run `bun install --frozen-lockfile` and `bun run package:win`. The x
 
 ## Updates
 
-Install WinOpti 0.2.0 or newer once to enable **Settings → Updates**. From there, check for a release, download it, and choose **Restart and install**. WinOpti checks its public GitHub Releases and verifies the installer against the release asset's size and SHA-256 digest before running it. Active scans and app close reviews must finish before the app can restart. Captures and preferences stay in the local user profile. [WinOpti releases](https://github.com/imluri/WinOpti/releases)
+Open **Updates** in the sidebar in WinOpti 0.2.3 or newer. If you're on 0.2.0 through 0.2.2, open **Settings → Updates**. Check for a release, download it, and choose **Restart and install**. WinOpti checks its public GitHub Releases and verifies the installer against the release asset's size and SHA-256 digest before running it. Active scans and app close reviews must finish before the app can restart. Captures and preferences stay in the local user profile. [WinOpti releases](https://github.com/imluri/WinOpti/releases)
 
 To publish an update, bump the version in `package.json`, commit it, and push a matching stable tag such as `v0.2.1`. The release workflow tests and packages that revision, then publishes the installer under the tag.
 
@@ -28,6 +28,8 @@ To publish an update, bump the version in `package.json`, commit it, and push a 
 Open **Performance** to see live CPU, GPU, memory, and storage activity and the hardware Windows can identify. WinOpti samples about once a second while the page is visible. The dashboard reads counters from a persistent native Windows helper. Saved scans use a separate helper and separate counters. Bun bundles the renderer and main-process code. The Windows APIs provide the live readings.
 
 Open **Processes** to search running apps and sort by CPU, GPU, RAM, disk, or process I/O. The view groups processes with the same executable path in the same Windows session. CPU is a share of total logical CPU capacity, GPU shows the group's busiest graphics engine, and RAM is the combined working set, which can count shared pages more than once. Disk uses Windows process disk accounting and refreshes separately. Process I/O includes file, network, and device transfers. You can pause the table to inspect a reading. The live table stays in memory.
+
+Select an app name to review it. WinOpti is marked **This app**. Add **Suspicious** or **Bloat** as personal tags, which are saved locally by executable path and can be used in search. **Check executable** shows the Windows signature status, publisher when verified, and SHA-256 hash. **Look up on VirusTotal** opens the report in your browser and shares only the hash. Signature status, reputation results, and high resource usage are clues for review. **Uninstall** opens Windows Installed apps so you can choose and confirm the removal there. Portable apps may be absent from that list.
 
 ## Record and compare
 

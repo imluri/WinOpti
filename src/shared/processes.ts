@@ -22,6 +22,9 @@ export interface ProcessCounters {
   processes: ProcessCounter[]
 }
 
+export const processTags = ['suspicious', 'bloat'] as const
+export type ProcessTag = typeof processTags[number]
+
 export interface LiveProcessRow {
   id: string
   name: string
@@ -33,6 +36,10 @@ export interface LiveProcessRow {
   diskBytesPerSecond: number | null
   ioBytesPerSecond: number | null
   icon?: string | null
+  isSelf?: boolean
+  canInspect?: boolean
+  canUninstall?: boolean
+  tags?: ProcessTag[]
 }
 
 export interface LiveProcesses {

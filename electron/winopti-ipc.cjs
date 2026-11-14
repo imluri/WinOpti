@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, globalShortcut, ipcMain, powerMonitor } = require('electron')
+const { app, BrowserWindow, dialog, globalShortcut, ipcMain, powerMonitor, shell } = require('electron')
 const { open, writeFile } = require('node:fs/promises')
 const path = require('node:path')
 const { getExecutableIcon } = require('./winopti-icons.cjs')
@@ -8,12 +8,20 @@ const markerShortcut = 'Control+Shift+F9'
 const maxCsvBytes = 25 * 1024 * 1024
 
 async function registerWinOpti(windowFromEvent, entryURL) {
-  const { createWinOptiService, createWindowsPlatform, createLiveProcesses } = require('../dist/winopti-service.cjs')
+  const { createWinOptiService, createWindowsPlatform, createLiveProcesses, createProcessReview } = require('../dist/winopti-service.cjs')
   const helperPath = app.isPackaged
     ? path.join(process.resourcesPath, 'winopti-platform.exe')
     : path.join(__dirname, '../dist/winopti-platform.exe')
   const dashboardPlatform = createWindowsPlatform(helperPath)
-  const getProcesses = createLiveProcesses(dashboardPlatform.processes, getExecutableIcon)
+  const liveProcesses = createLiveProcesses(dashboardPlatform.processes, getExecutableIcon, {
+    ownPid: process.pid,
+    windowsDirectory: process.env.SystemRoot,
+  })
+  const processReview = await createProcessReview({
+    ...liveProcesses,
+    statePath: path.join(app.getPath('userData'), 'winopti-process-tags.json'),
+    openExternal: url => shell.openExternal(url),
+  })
   let hardware
   let pendingPerformance
   let recentPerformance
@@ -58,7 +66,11 @@ async function registerWinOpti(windowFromEvent, entryURL) {
   const methods = {
     getState: () => service.getState(),
     getPerformance,
-    getProcesses,
+    getProcesses: processReview.getProcesses,
+    setProcessTags: (_window, id, tags) => processReview.setProcessTags(id, tags),
+    inspectProcess: (_window, id) => processReview.inspectProcess(id),
+    lookupProcessReputation: (_window, id, sha256) => processReview.lookupProcessReputation(id, sha256),
+    openInstalledApps: (_window, id) => processReview.openInstalledApps(id),
     refreshPower: () => service.refreshPower(),
     listProcesses: () => service.listProcesses(),
     setRecurring: (_window, settings) => service.setRecurring(settings),
