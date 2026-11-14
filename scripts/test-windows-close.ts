@@ -8,7 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { createWindowsPlatform } from '../src/main/winopti-platform'
 import { createWinOptiService } from '../src/main/winopti-service'
 import { classifyApps } from '../src/shared/winopti'
-import { compile } from './build-platform.cjs'
+import { compile, compilePlatform } from './build-platform.cjs'
 
 if (process.platform !== 'win32') throw new Error('Run this test in an interactive Windows desktop session.')
 
@@ -73,7 +73,7 @@ async function windowClosedNormally(pid: number) {
 const activeWindows: { pid: number; startedAt: number; executable: string; creationToken: string }[] = []
 
 try {
-  compile(resolve('electron', 'winopti-platform.cs'), helper, ['/target:exe', '/reference:System.Web.Extensions.dll'])
+  compilePlatform(helper)
   compile(fixture, appPath, ['/target:winexe', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll'])
   await writeFile(join(work, 'fixture.html'), '<h1>WinOpti disposable dev server</h1>')
   await writeFile(join(work, 'fixture-entry.js'), 'console.log("WinOpti build version 1")')

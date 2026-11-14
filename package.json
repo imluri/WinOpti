@@ -1,7 +1,7 @@
 {
   "name": "winopti",
   "productName": "WinOpti",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Windows 11 game stutter diagnostics and background app review",
   "author": "imluri",
   "private": true,
@@ -42,12 +42,16 @@
     ],
     "extraResources": [
       {
+        "from": "assets/winopti-icon.ico",
+        "to": "winopti-icon.ico"
+      },
+      {
         "from": "dist/winopti-platform.exe",
         "to": "winopti-platform.exe"
       }
     ],
     "win": {
-      "icon": "assets/winopti-icon.png",
+      "icon": "assets/winopti-icon.ico",
       "requestedExecutionLevel": "asInvoker",
       "target": "nsis"
     },

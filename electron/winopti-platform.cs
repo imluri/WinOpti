@@ -8,7 +8,7 @@ using System.Text;
 using System.Web.Script.Serialization;
 using Microsoft.Win32;
 
-public static class WinOptiNative
+public static partial class WinOptiNative
 {
     private const uint QueryLimitedInformation = 0x1000;
     private const uint Synchronize = 0x00100000;
@@ -181,22 +181,47 @@ public static class WinOptiNative
     [DllImport("dxgi.dll")]
     private static extern int CreateDXGIFactory1(ref Guid interfaceId, out IntPtr factory);
 
-    public sealed class ProcessData
+    public class ProcessTelemetry
     {
         public uint pid { get; set; }
         public uint? parentPid { get; set; }
         public string name { get; set; }
-        public long? startedAt { get; set; }
         public string creationToken { get; set; }
         public string executable { get; set; }
         public string displayName { get; set; }
         public string iconPath { get; set; }
-        public string commandLine { get; set; }
         public double? cpuTimeMs { get; set; }
         public ulong? workingSetBytes { get; set; }
         public ulong? ioBytes { get; set; }
-        public string windowTitle { get; set; }
         public uint? sessionId { get; set; }
+    }
+
+    public sealed class ProcessData : ProcessTelemetry
+    {
+        public long? startedAt { get; set; }
+        public string commandLine { get; set; }
+        public string windowTitle { get; set; }
+    }
+
+    public sealed class LiveProcess : ProcessTelemetry
+    {
+        public List<EngineUse> gpuEngines { get; set; }
+        public double? diskBytesPerSecond { get; set; }
+    }
+
+    public sealed class EngineUse
+    {
+        public string engine { get; set; }
+        public double percent { get; set; }
+    }
+
+    public sealed class LiveProcessSnapshot
+    {
+        public long at { get; set; }
+        public ulong tickMs { get; set; }
+        public long? diskAt { get; set; }
+        public int logicalCpus { get; set; }
+        public List<LiveProcess> processes { get; set; }
     }
 
     public sealed class PowerData
@@ -407,6 +432,52 @@ public static class WinOptiNative
 
     private static SystemCounters scanCounters;
     private static SystemCounters dashboardCounters;
+    private static ProcessGpuCounters processGpuCounters;
+    private static Dictionary<uint, LiveProcess> previousLiveProcesses = new Dictionary<uint, LiveProcess>();
+
+    private sealed class ProcessGpuCounters : IDisposable
+    {
+        private readonly IntPtr query;
+        private readonly IntPtr gpu;
+        private readonly Stopwatch clock = Stopwatch.StartNew();
+
+        public ProcessGpuCounters()
+        {
+            if (PdhOpenQueryW(null, IntPtr.Zero, out query) == 0 &&
+                PdhAddEnglishCounterW(query, @"\GPU Engine(*)\Utilization Percentage", IntPtr.Zero, out gpu) != 0)
+                gpu = IntPtr.Zero;
+            if (gpu != IntPtr.Zero) PdhCollectQueryData(query);
+            clock.Restart();
+        }
+
+        public void Apply(List<LiveProcess> processes, Dictionary<uint, LiveProcess> previous)
+        {
+            long elapsed = clock.ElapsedMilliseconds;
+            if (gpu == IntPtr.Zero || elapsed < 250) return;
+            clock.Restart();
+            // Re-prime after the page was closed or sampling was suspended.
+            if (PdhCollectQueryData(query) != 0 || elapsed > 3500) return;
+            var readings = ReadProcessGpuEngines(gpu);
+            if (readings == null) return;
+            foreach (var process in processes)
+            {
+                LiveProcess prior;
+                if (process.creationToken == null || !previous.TryGetValue(process.pid, out prior) ||
+                    process.creationToken != prior.creationToken) continue;
+                Dictionary<string, double> engines;
+                if (readings.TryGetValue(process.pid, out engines) && engines.Count == 0) continue;
+                process.gpuEngines = new List<EngineUse>();
+                if (engines == null) continue;
+                foreach (var engine in engines)
+                    process.gpuEngines.Add(new EngineUse { engine = engine.Key, percent = engine.Value });
+            }
+        }
+
+        public void Dispose()
+        {
+            if (query != IntPtr.Zero) PdhCloseQuery(query);
+        }
+    }
 
     // One JSON request and response per line. Command lines travel only over
     // the local pipe to WinOpti's trusted main process.
@@ -426,6 +497,7 @@ public static class WinOptiNative
                     Request request = json.Deserialize<Request>(line);
                     response.id = request.id;
                     if (request.action == "snapshot") response.result = Snapshot();
+                    else if (request.action == "processes") response.result = ReadLiveProcessSnapshot();
                     else if (request.action == "performance") response.result = ReadPerformance();
                     else if (request.action == "hardware") response.result = ReadHardware();
                     else if (request.action == "close" && request.identity != null)
@@ -444,6 +516,7 @@ public static class WinOptiNative
         {
             if (scanCounters != null) scanCounters.Dispose();
             if (dashboardCounters != null) dashboardCounters.Dispose();
+            if (processGpuCounters != null) processGpuCounters.Dispose();
         }
     }
 
@@ -527,7 +600,7 @@ public static class WinOptiNative
         return sample;
     }
 
-    private static IEnumerable<PdhItem> CounterItems(IntPtr counter)
+    private static IEnumerable<PdhItem> CounterItems(IntPtr counter, bool includeInvalid = false)
     {
         if (counter == IntPtr.Zero) yield break;
         uint bytes = 0;
@@ -543,7 +616,7 @@ public static class WinOptiNative
             for (int i = 0; i < count; i++)
             {
                 var item = (PdhItem)Marshal.PtrToStructure(IntPtr.Add(buffer, i * itemSize), typeof(PdhItem));
-                if (item.name != IntPtr.Zero && Valid(item.data)) yield return item;
+                if (item.name != IntPtr.Zero && (includeInvalid || Valid(item.data))) yield return item;
             }
         }
         finally { Marshal.FreeHGlobal(buffer); }
@@ -580,6 +653,38 @@ public static class WinOptiNative
             if (!busiest.HasValue || utilization > busiest.Value) busiest = utilization;
         }
         return Percent(busiest);
+    }
+
+    private static Dictionary<uint, Dictionary<string, double>> ReadProcessGpuEngines(IntPtr counter)
+    {
+        var result = new Dictionary<uint, Dictionary<string, double>>();
+        bool hasValidReading = false;
+        foreach (var item in CounterItems(counter, true))
+        {
+            string name = Marshal.PtrToStringUni(item.name);
+            if (!name.StartsWith("pid_", StringComparison.OrdinalIgnoreCase)) continue;
+            int engineStart = name.IndexOf("_luid_", StringComparison.OrdinalIgnoreCase);
+            if (engineStart <= 4) continue;
+            int engineIndex = name.IndexOf("_eng_", engineStart, StringComparison.OrdinalIgnoreCase);
+            int engineEnd = engineIndex < 0 ? -1 : name.IndexOf("_engtype_", engineIndex, StringComparison.OrdinalIgnoreCase);
+            uint pid;
+            if (engineEnd < 0 || !uint.TryParse(name.Substring(4, engineStart - 4),
+                NumberStyles.None, CultureInfo.InvariantCulture, out pid)) continue;
+
+            Dictionary<string, double> engines;
+            if (!result.TryGetValue(pid, out engines))
+            {
+                engines = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+                result.Add(pid, engines);
+            }
+            if (!Valid(item.data)) continue;
+            hasValidReading = true;
+            string engine = name.Substring(engineStart + 1, engineEnd - engineStart - 1);
+            double previous;
+            if (!engines.TryGetValue(engine, out previous) || previous < item.data.value)
+                engines[engine] = Math.Min(100, item.data.value);
+        }
+        return hasValidReading ? result : null;
     }
 
     private static HardwareInfo ReadHardware()
@@ -767,6 +872,91 @@ public static class WinOptiNative
         return results;
     }
 
+    private static LiveProcessSnapshot ReadLiveProcessSnapshot()
+    {
+        if (processGpuCounters == null) processGpuCounters = new ProcessGpuCounters();
+        var snapshot = new LiveProcessSnapshot
+        {
+            at = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            tickMs = GetTickCount64(),
+            logicalCpus = LogicalCpuCount(),
+            processes = new List<LiveProcess>()
+        };
+        uint currentSession;
+        bool knowsSession = ProcessIdToSessionId(GetCurrentProcessId(), out currentSession);
+        var entry = new ProcessEntry { size = (uint)Marshal.SizeOf(typeof(ProcessEntry)) };
+        IntPtr list = CreateToolhelp32Snapshot(SnapshotProcesses, 0);
+        if (list == new IntPtr(-1)) throw new InvalidOperationException("Could not list Windows processes.");
+        try
+        {
+            if (!Process32FirstW(list, ref entry)) throw new InvalidOperationException("Could not read Windows processes.");
+            do
+            {
+                if (entry.pid == 0) continue;
+                var row = new LiveProcess
+                {
+                    pid = entry.pid,
+                    parentPid = entry.parentPid == 0 ? (uint?)null : entry.parentPid,
+                    name = entry.name
+                };
+                uint session;
+                if (ProcessIdToSessionId(entry.pid, out session)) row.sessionId = session;
+                if (ReadLiveProcessDetails(row, knowsSession && row.sessionId == currentSession))
+                    snapshot.processes.Add(row);
+            } while (Process32NextW(list, ref entry));
+        }
+        finally { CloseHandle(list); }
+
+        processGpuCounters.Apply(snapshot.processes, previousLiveProcesses);
+        ApplyProcessDiskRates(snapshot);
+        var current = new Dictionary<uint, LiveProcess>();
+        foreach (var row in snapshot.processes) current[row.pid] = row;
+        previousLiveProcesses = current;
+        return snapshot;
+    }
+
+    private static bool ReadLiveProcessDetails(LiveProcess row, bool sameSession)
+    {
+        IntPtr process = OpenProcess(QueryLimitedInformation, false, row.pid);
+        if (process == IntPtr.Zero) return Marshal.GetLastWin32Error() != InvalidParameter;
+        try
+        {
+            long created, exited, kernel, user;
+            if (GetProcessTimes(process, out created, out exited, out kernel, out user))
+            {
+                if (exited != 0) return false;
+                if (created > 0)
+                {
+                    row.creationToken = created.ToString(CultureInfo.InvariantCulture);
+                    row.cpuTimeMs = (kernel + user) / 10000.0;
+                }
+            }
+            if (sameSession && row.creationToken != null)
+            {
+                LiveProcess previous;
+                if (previousLiveProcesses.TryGetValue(row.pid, out previous) &&
+                    previous.creationToken == row.creationToken && previous.executable != null)
+                {
+                    row.executable = previous.executable;
+                    row.displayName = previous.displayName;
+                    row.iconPath = previous.iconPath;
+                }
+                else
+                {
+                    row.executable = ReadImagePath(process);
+                    if (IsFixedDriveExecutable(row.executable))
+                    {
+                        row.iconPath = row.executable;
+                        row.displayName = DescribeImage(row.executable);
+                    }
+                }
+            }
+            ReadProcessResources(process, row);
+            return true;
+        }
+        finally { CloseHandle(process); }
+    }
+
     private static void ReadProcessDetails(ProcessData row, bool sameSession)
     {
         IntPtr process = OpenProcess(QueryLimitedInformation, false, row.pid);
@@ -790,12 +980,17 @@ public static class WinOptiNative
                     if (row.windowTitle != null) row.displayName = DescribeImage(row.executable);
                 }
             }
-            var memory = new ProcessMemory { size = (uint)Marshal.SizeOf(typeof(ProcessMemory)) };
-            if (GetProcessMemoryInfo(process, ref memory, memory.size)) row.workingSetBytes = memory.workingSet.ToUInt64();
-            IoCounters io;
-            if (GetProcessIoCounters(process, out io)) row.ioBytes = io.readBytes + io.writeBytes;
+            ReadProcessResources(process, row);
         }
         finally { CloseHandle(process); }
+    }
+
+    private static void ReadProcessResources(IntPtr process, ProcessTelemetry row)
+    {
+        var memory = new ProcessMemory { size = (uint)Marshal.SizeOf(typeof(ProcessMemory)) };
+        if (GetProcessMemoryInfo(process, ref memory, memory.size)) row.workingSetBytes = memory.workingSet.ToUInt64();
+        IoCounters io;
+        if (GetProcessIoCounters(process, out io)) row.ioBytes = io.readBytes + io.writeBytes;
     }
 
     private static string ReadImagePath(IntPtr process)

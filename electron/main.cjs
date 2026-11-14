@@ -8,7 +8,12 @@ const entryURL = `${scheme}://${host}/index.html`
 const rendererDir = path.resolve(__dirname, '../dist')
 const live = process.platform === 'win32' && !process.argv.includes('--preview')
 const primaryInstance = !live || app.requestSingleInstanceLock()
-if (process.platform === 'win32') app.setAppUserModelId('com.imluri.winopti')
+const windows = process.platform === 'win32'
+const appId = app.isPackaged ? 'com.imluri.winopti' : 'com.imluri.winopti.dev'
+const iconPath = windows
+  ? path.join(app.isPackaged ? process.resourcesPath : path.resolve(__dirname, '../assets'), 'winopti-icon.ico')
+  : path.resolve(__dirname, '../assets/winopti-icon.png')
+if (windows) app.setAppUserModelId(appId)
 app.on('second-instance', () => {
   const window = BrowserWindow.getAllWindows()[0]
   if (window?.isMinimized()) window.restore()
@@ -77,7 +82,7 @@ function createWindow() {
     frame: false,
     show: false,
     title: 'WinOpti',
-    icon: path.join(__dirname, '../assets/winopti-icon.png'),
+    icon: iconPath,
     backgroundColor: '#080808',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -88,6 +93,18 @@ function createWindow() {
       additionalArguments: live ? ['--winopti-live'] : [],
     },
   })
+
+  if (windows) {
+    // Windows can use the relaunch icon for the taskbar group and pinned shortcut.
+    const appArguments = app.isPackaged ? [] : [app.getAppPath()]
+    if (process.argv.includes('--preview')) appArguments.push('--preview')
+    window.setAppDetails({
+      appId,
+      appIconPath: iconPath,
+      relaunchCommand: [process.execPath, ...appArguments].map(argument => `"${argument}"`).join(' '),
+      relaunchDisplayName: 'WinOpti',
+    })
+  }
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.webContents.on('will-navigate', event => event.preventDefault())

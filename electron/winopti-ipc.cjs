@@ -8,11 +8,12 @@ const markerShortcut = 'Control+Shift+F9'
 const maxCsvBytes = 25 * 1024 * 1024
 
 async function registerWinOpti(windowFromEvent, entryURL) {
-  const { createWinOptiService, createWindowsPlatform } = require('../dist/winopti-service.cjs')
+  const { createWinOptiService, createWindowsPlatform, createLiveProcesses } = require('../dist/winopti-service.cjs')
   const helperPath = app.isPackaged
     ? path.join(process.resourcesPath, 'winopti-platform.exe')
     : path.join(__dirname, '../dist/winopti-platform.exe')
   const dashboardPlatform = createWindowsPlatform(helperPath)
+  const getProcesses = createLiveProcesses(dashboardPlatform.processes, getExecutableIcon)
   let hardware
   let pendingPerformance
   let recentPerformance
@@ -57,6 +58,7 @@ async function registerWinOpti(windowFromEvent, entryURL) {
   const methods = {
     getState: () => service.getState(),
     getPerformance,
+    getProcesses,
     refreshPower: () => service.refreshPower(),
     listProcesses: () => service.listProcesses(),
     setRecurring: (_window, settings) => service.setRecurring(settings),

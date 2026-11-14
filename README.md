@@ -27,6 +27,8 @@ To publish an update, bump the version in `package.json`, commit it, and push a 
 
 Open **Performance** to see live CPU, GPU, memory, and storage activity and the hardware Windows can identify. WinOpti samples about once a second while the page is visible. The dashboard reads counters from a persistent native Windows helper. Saved scans use a separate helper and separate counters. Bun bundles the renderer and main-process code. The Windows APIs provide the live readings.
 
+Open **Processes** to search running apps and sort by CPU, GPU, RAM, disk, or process I/O. The view groups processes with the same executable path in the same Windows session. CPU is a share of total logical CPU capacity, GPU shows the group's busiest graphics engine, and RAM is the combined working set, which can count shared pages more than once. Disk uses Windows process disk accounting and refreshes separately. Process I/O includes file, network, and device transfers. You can pause the table to inspect a reading. The live table stays in memory.
+
 ## Record and compare
 
 1. Choose the running game from the process picker. Record the scene or route, graphics settings, frame cap, and capture duration. Choose a 1, 2, 3, or 5 second sampling interval, then start the scan and play through that scene.

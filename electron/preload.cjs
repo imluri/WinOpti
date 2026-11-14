@@ -14,7 +14,7 @@ contextBridge.exposeInMainWorld('desktopWindow', {
 
 if (process.argv.includes('--winopti-live')) {
   const methods = [
-    'getState', 'getPerformance', 'refreshPower', 'listProcesses', 'setRecurring', 'startCapture', 'markStutter', 'finishCapture', 'cancelCapture',
+    'getState', 'getPerformance', 'getProcesses', 'refreshPower', 'listProcesses', 'setRecurring', 'startCapture', 'markStutter', 'finishCapture', 'cancelCapture',
     'prepareClose', 'cancelClose', 'confirmClose', 'setAlwaysProtect', 'importFrameTimes', 'exportReport',
     'getUpdateState', 'checkForUpdates', 'downloadUpdate', 'installUpdate',
   ]

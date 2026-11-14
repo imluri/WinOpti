@@ -1,5 +1,6 @@
-import React, { useEffect, useId, useState } from 'react'
+import React, { useCallback, useId, useState } from 'react'
 import { Icon } from './icons'
+import { useLivePolling } from './use-live-polling'
 
 const second = 1_000
 const historyWindow = 60 * second
@@ -74,57 +75,24 @@ function makeExample() {
 function usePerformance(isPreview, fetchPerformance) {
   const [samples, setSamples] = useState(() => isPreview ? makeExample() : [])
   const [hardware, setHardware] = useState(() => isPreview ? sampleHardware : null)
-  const [state, setState] = useState(isPreview ? 'sample' : 'loading')
+  const [state, setState] = useState(isPreview ? 'sample' : fetchPerformance ? 'loading' : 'unavailable')
 
-  useEffect(() => {
-    if (isPreview) return
-    if (!fetchPerformance) {
+  const onResult = useCallback(({ hardware: device, sample }) => {
+    if (!sample || !valid(sample.at)) {
       setState('unavailable')
       return
     }
-    let running = false
-    let stopped = false
-    let timer
-    async function poll() {
-      if (running || stopped || document.hidden) return
-      running = true
-      const started = performance.now()
-      try {
-        const { hardware: device, sample } = await fetchPerformance()
-        if (stopped) return
-        if (!sample || !valid(sample.at)) {
-          setState('unavailable')
-          return
-        }
-        if (device) setHardware(device)
-        setState('live')
-        setSamples(previous => {
-          if (sample.at === previous.at(-1)?.at) return previous
-          if (sample.at < previous.at(-1)?.at) return [sample]
-          const recent = previous.filter(item => item.at >= sample.at - historyWindow)
-          return [...recent.slice(-60), sample]
-        })
-      } catch {
-        if (!stopped) setState('unavailable')
-      } finally {
-        running = false
-        if (!stopped && !document.hidden) {
-          timer = setTimeout(poll, Math.max(150, second - (performance.now() - started)))
-        }
-      }
-    }
-    function onVisibilityChange() {
-      clearTimeout(timer)
-      if (!document.hidden) void poll()
-    }
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    void poll()
-    return () => {
-      stopped = true
-      clearTimeout(timer)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
-    }
-  }, [isPreview, fetchPerformance])
+    if (device) setHardware(device)
+    setState('live')
+    setSamples(previous => {
+      if (sample.at === previous.at(-1)?.at) return previous
+      if (sample.at < previous.at(-1)?.at) return [sample]
+      const recent = previous.filter(item => item.at >= sample.at - historyWindow)
+      return [...recent.slice(-60), sample]
+    })
+  }, [])
+  const onError = useCallback(() => setState('unavailable'), [])
+  useLivePolling(fetchPerformance, !isPreview, onResult, onError)
 
   return { samples, hardware, state }
 }
