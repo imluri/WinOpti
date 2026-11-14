@@ -23,6 +23,10 @@ Install WinOpti 0.2.0 or newer once to enable **Settings → Updates**. From the
 
 To publish an update, bump the version in `package.json`, commit it, and push a matching stable tag such as `v0.2.1`. The release workflow tests and packages that revision, then publishes the installer under the tag.
 
+## Live performance
+
+Open **Performance** to see live CPU, GPU, memory, and storage activity and the hardware Windows can identify. WinOpti samples about once a second while the page is visible. The dashboard reads counters from a persistent native Windows helper. Saved scans use a separate helper and separate counters. Bun bundles the renderer and main-process code. The Windows APIs provide the live readings.
+
 ## Record and compare
 
 1. Choose the running game from the process picker. Record the scene or route, graphics settings, frame cap, and capture duration. Choose a 1, 2, 3, or 5 second sampling interval, then start the scan and play through that scene.

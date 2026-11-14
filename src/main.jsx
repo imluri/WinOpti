@@ -8,10 +8,12 @@ import { previewCapture, previewCloseResults, previewConditions, previewProcesse
 import { AppIcon, ComparePage, ConfirmDialog, PowerBadge, ProcessPicker, RecurringCapture, ReviewPage, ScanPage } from './workflow'
 import { RecurringScans } from './recurring'
 import { UpdatesPanel } from './updater'
+import { PerformancePage } from './performance'
 import { compareCaptures, matchesAlwaysProtect, recurringScanInterval } from './shared/winopti'
 import { version } from '../package.json'
 import './styles.css'
 import './dashboard.css'
+import './performance.css'
 
 const storageKey = 'winopti.appearance'
 const previewProtectKey = 'winopti.preview-protected'
@@ -24,6 +26,7 @@ const unavailableUpdate = {
 }
 const brand = { name: 'WinOpti', caption: 'Game performance', mark: <Icon name="pulse" size={19} /> }
 const items = [
+  { id: 'performance', label: 'Performance', icon: <Icon name="monitor" /> },
   { id: 'scan', label: 'Scan', icon: <Icon name="pulse" /> },
   { id: 'review', label: 'Review apps', icon: <Icon name="shield" /> },
   { id: 'compare', label: 'Compare', icon: <Icon name="compare" /> },
@@ -402,6 +405,7 @@ function App() {
           <PowerBadge power={power} />
         </div>
         {notice && <p className="notice" role="status">{notice}</p>}
+        {page === 'performance' && <PerformancePage isPreview={isPreview} bridge={bridge} />}
         {page === 'scan' && <ScanPage {...{ baseline, phase, conditions, setConditions, active, elapsed, busy, isPreview, gameProcess }}
           recurringPanel={<RecurringScans schedule={isPreview ? emptySchedule : recurring} conditions={conditions}
             available={!isPreview && Boolean(bridge?.setRecurring)} pending={busy || !scheduleLoaded} onSave={saveSchedule}>

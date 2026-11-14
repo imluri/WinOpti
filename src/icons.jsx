@@ -16,6 +16,8 @@ const paths = {
   pulse: <path d="M2 12h5l3-7 4 14 3-7h5"/>,
   shield: <><path d="M12 22s7-3.5 7-9V6l-7-3-7 3v7c0 5.5 7 9 7 9Z"/><path d="m9 12 2 2 4-4"/></>,
   compare: <><path d="M4 4v16h16M8 16v-3m4 3V8m4 8v-5m4 5V5"/></>,
+  monitor: <><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4M6.5 11h2l1.5-2.5 2.5 4.5 1.5-2h3.5"/></>,
+  gpu: <><path d="M3 5v14m0-2h17a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1H3m4 10v2m6-2v2"/><circle cx="10" cy="12" r="2.5"/><path d="M16 10h2m-2 4h2"/></>,
   chip: <><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 9h6v6H9zM9 3v3m6-3v3M9 18v3m6-3v3M3 9h3m-3 6h3m12-6h3m-3 6h3"/></>,
   memory: <><rect x="3" y="6" width="18" height="11" rx="2"/><path d="M7 9v4m5-4v4m5-4v4M7 17v3m5-3v3m5-3v3"/></>,
   disk: <><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 14h18m-14 2.5h.01m3 0h.01"/></>,

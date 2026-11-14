@@ -8,16 +8,35 @@ const markerShortcut = 'Control+Shift+F9'
 const maxCsvBytes = 25 * 1024 * 1024
 
 async function registerWinOpti(windowFromEvent, entryURL) {
-  const { createWinOptiService } = require('../dist/winopti-service.cjs')
+  const { createWinOptiService, createWindowsPlatform } = require('../dist/winopti-service.cjs')
+  const helperPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'winopti-platform.exe')
+    : path.join(__dirname, '../dist/winopti-platform.exe')
+  const dashboardPlatform = createWindowsPlatform(helperPath)
+  let hardware
+  let pendingPerformance
+  let recentPerformance
+  function getPerformance() {
+    if (pendingPerformance) return pendingPerformance
+    if (recentPerformance && Date.now() - recentPerformance.receivedAt < 950) return recentPerformance.reading
+    pendingPerformance = (async () => {
+      // Inventory is collected once per app session. Live counters run in a
+      // separate helper so they cannot advance the counters used for scans.
+      hardware ??= await dashboardPlatform.hardware()
+      const sample = await dashboardPlatform.performance()
+      const reading = { hardware, sample }
+      recentPerformance = { reading, receivedAt: Date.now() }
+      return reading
+    })().finally(() => { pendingPerformance = undefined })
+    return pendingPerformance
+  }
   const broadcast = (channel, state) => {
     for (const window of BrowserWindow.getAllWindows()) {
       if (window.webContents.getURL() === entryURL) window.webContents.send(channel, state)
     }
   }
   const service = await createWinOptiService({
-    helperPath: app.isPackaged
-      ? path.join(process.resourcesPath, 'winopti-platform.exe')
-      : path.join(__dirname, '../dist/winopti-platform.exe'),
+    helperPath,
     statePath: path.join(app.getPath('userData'), 'winopti-captures.json'),
     ownPid: process.pid,
     getIcon: getExecutableIcon,
@@ -37,6 +56,7 @@ async function registerWinOpti(windowFromEvent, entryURL) {
 
   const methods = {
     getState: () => service.getState(),
+    getPerformance,
     refreshPower: () => service.refreshPower(),
     listProcesses: () => service.listProcesses(),
     setRecurring: (_window, settings) => service.setRecurring(settings),
@@ -129,6 +149,7 @@ async function registerWinOpti(windowFromEvent, entryURL) {
     powerMonitor.off('suspend', suspend)
     powerMonitor.off('resume', resume)
     clearMarkerShortcut()
+    dashboardPlatform.dispose()
     service.dispose()
   })
 }

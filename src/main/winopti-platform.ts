@@ -2,13 +2,14 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import type { ProcessIdentity, Snapshot } from '../shared/winopti'
+import type { HardwareInfo, PerformanceSample } from '../shared/performance'
 
 export type CloseAttempt = {
   status: 'requested' | 'exited' | 'identity-changed' | 'no-window' | 'denied'
   detail: string
 }
 
-type HelperAction = { action: 'snapshot' } | { action: 'close'; identity: ProcessIdentity }
+type HelperAction = { action: 'snapshot' | 'performance' | 'hardware' } | { action: 'close'; identity: ProcessIdentity }
 type PendingRequest = {
   complete: (value: unknown) => void
   fail: (error: Error) => void
@@ -81,6 +82,8 @@ export function createWindowsPlatform(executable = resolve('dist', 'winopti-plat
 
   return {
     snapshot: () => send<Snapshot>({ action: 'snapshot' }),
+    performance: () => send<PerformanceSample>({ action: 'performance' }),
+    hardware: () => send<HardwareInfo>({ action: 'hardware' }),
     requestClose(identity: ProcessIdentity): Promise<CloseAttempt> {
       if (!Number.isInteger(identity.pid) || identity.pid <= 0 || identity.pid > 0xffffffff ||
           typeof identity.creationToken !== 'string' || !/^\d+$/.test(identity.creationToken) ||

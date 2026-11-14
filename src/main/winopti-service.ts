@@ -10,6 +10,7 @@ import {
 } from '../shared/winopti'
 import { readPresentMon } from './presentmon'
 import { createWindowsPlatform } from './winopti-platform'
+export { createWindowsPlatform } from './winopti-platform'
 
 type Phase = 'baseline' | 'followup'
 type Platform = Pick<ReturnType<typeof createWindowsPlatform>, 'snapshot' | 'requestClose'>
