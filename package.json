@@ -1,0 +1,64 @@
+{
+  "name": "winopti",
+  "productName": "WinOpti",
+  "version": "0.2.0",
+  "description": "Windows 11 game stutter diagnostics and background app review",
+  "author": "imluri",
+  "private": true,
+  "license": "MIT",
+  "main": "electron/main.cjs",
+  "packageManager": "bun@1.4.4",
+  "scripts": {
+    "dev": "bun ./index.html",
+    "build": "bun run build:preview && node scripts/build-platform.cjs && bun build ./src/main/winopti-service.ts --target=node --format=cjs --outfile=dist/winopti-service.cjs",
+    "build:preview": "bun build ./index.html --target=browser --production --outdir=dist",
+    "desktop": "bun run build && electron .",
+    "desktop:preview": "bun run build:preview && electron . --preview",
+    "package:win": "bun run build && electron-builder --win nsis --x64 --publish never",
+    "preview:html": "bun build ./index.html --compile --target=browser --production --outdir=dist/preview"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "electron": "45.3.2",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.imluri.winopti",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "assets/winopti-icon.png",
+      "electron/*.cjs",
+      "dist/index.html",
+      "dist/index-*.js",
+      "dist/index-*.css",
+      "dist/winopti-service.cjs",
+      "LICENSE",
+      "!node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/winopti-platform.exe",
+        "to": "winopti-platform.exe"
+      }
+    ],
+    "win": {
+      "icon": "assets/winopti-icon.png",
+      "requestedExecutionLevel": "asInvoker",
+      "target": "nsis"
+    },
+    "nsis": {
+      "artifactName": "WinOpti-Setup-${version}-${arch}.${ext}",
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "packElevateHelper": false,
+      "runAfterFinish": false,
+      "createDesktopShortcut": false
+    }
+  }
+}
